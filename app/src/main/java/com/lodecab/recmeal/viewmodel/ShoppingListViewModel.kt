@@ -1,5 +1,6 @@
 package com.lodecab.recmeal.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lodecab.recmeal.data.Ingredient
@@ -20,7 +21,6 @@ class ShoppingListViewModel @Inject constructor(
     private val apiService: SpoonacularApiService,
     @Named("spoonacularApiKey") private val apiKey: String
 ) : ViewModel() {
-
     private val _shoppingList = MutableStateFlow<List<Ingredient>>(emptyList())
     val shoppingList: StateFlow<List<Ingredient>> = _shoppingList.asStateFlow()
 
@@ -30,22 +30,21 @@ class ShoppingListViewModel @Inject constructor(
 
     private fun loadShoppingList() {
         viewModelScope.launch {
-            val mealPlans = recipeRepository.getAllMealPlans().firstOrNull() ?: emptyList()
+            val mealPlans = recipeRepository.getMealPlans().firstOrNull() ?: emptyList()
             val allIngredients = mutableListOf<Ingredient>()
 
             for (mealPlan in mealPlans) {
                 val recipes = recipeRepository.getRecipesForDate(mealPlan.date).firstOrNull() ?: emptyList()
                 for (recipe in recipes) {
-                    // Fetch full recipe details from Spoonacular API to get ingredients
                     try {
-                        val recipeDetails = apiService.getRecipeDetails(recipe.recipeId, apiKey)
+                        val recipeDetails = apiService.getRecipeDetails(recipe.id, apiKey)
                         allIngredients.addAll(recipeDetails.ingredients)
                     } catch (e: Exception) {
-                        // Log error or handle gracefully (e.g., show cached data if available later)
+                        Log.e("ShoppingListViewModel", "Error fetching recipe details: ${e.message}", e)
                     }
                 }
             }
-            _shoppingList.value = allIngredients.distinctBy { "${it.name}-${it.unit}" } // Avoid duplicates
+            _shoppingList.value = allIngredients.distinctBy { "${it.name}-${it.unit}" }
         }
     }
 
@@ -53,7 +52,6 @@ class ShoppingListViewModel @Inject constructor(
         _shoppingList.value = _shoppingList.value.filter { it != item }
     }
 
-    // Refresh the list if needed (e.g., after meal plan changes)
     fun refresh() {
         loadShoppingList()
     }

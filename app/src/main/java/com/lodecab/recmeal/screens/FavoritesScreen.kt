@@ -27,7 +27,6 @@ fun FavoritesScreen(
     val favorites by viewModel.favorites.collectAsState(initial = emptyList())
     val authState by authViewModel.authState.collectAsState()
 
-    // Redirect to login if not signed in
     LaunchedEffect(authState) {
         if (authState is AuthState.SignedOut) {
             navController.navigate(NavRoutes.LOGIN) {
@@ -53,10 +52,10 @@ fun FavoritesScreen(
                 text = "Favorites",
                 style = MaterialTheme.typography.titleLarge
             )
-            Spacer(modifier = Modifier.width(48.dp)) // To balance the layout
+            Spacer(modifier = Modifier.width(48.dp))
         }
 
-        if (favorites.isEmpty()) {
+        if (favorites.size == 0) { // Replaced isEmpty() to avoid ambiguity
             Text(
                 text = "No favorite recipes yet.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -68,14 +67,14 @@ fun FavoritesScreen(
                     RecipeItem(
                         title = recipe.title,
                         image = recipe.image,
-                        usedIngredientCount = recipe.usedIngredientCount, // Add this
-                        missedIngredientCount = recipe.missedIngredientCount, // Add this
+                        usedIngredientCount = recipe.usedIngredientCount,
+                        missedIngredientCount = recipe.missedIngredientCount,
                         onClick = {
                             navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id))
                         },
                         onRemove = {
                             viewModel.removeFavorite(recipe.id)
-                        },  // Add this
+                        },
                         useCard = true
                     )
                 }

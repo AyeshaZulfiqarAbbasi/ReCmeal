@@ -1,5 +1,8 @@
 package com.lodecab.recmeal.data
 
+import com.google.firebase.firestore.IgnoreExtraProperties
+
+@IgnoreExtraProperties
 data class CustomRecipe(
     val id: String = "", // This should be the Firestore document ID
     val title: String = "",

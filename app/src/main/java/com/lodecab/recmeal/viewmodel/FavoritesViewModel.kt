@@ -11,7 +11,7 @@ import javax.inject.Inject
 class FavoritesViewModel @Inject constructor(
     private val recipeRepository: RecipeRepository
 ) : ViewModel() {
-    val favorites = recipeRepository.getAllFavorites()
+    val favorites = recipeRepository.getFavorites()
 
     fun removeFavorite(recipeId: Int) {
         viewModelScope.launch {

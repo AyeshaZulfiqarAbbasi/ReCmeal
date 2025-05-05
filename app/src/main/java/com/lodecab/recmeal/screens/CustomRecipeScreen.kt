@@ -29,10 +29,11 @@ fun CustomRecipeScreen(
     var ingredientInput by remember { mutableStateOf("") }
     var instructionInput by remember { mutableStateOf("") }
 
-    // Handle navigation
     LaunchedEffect(navigateToRecipeList) {
         if (navigateToRecipeList) {
-            navController.popBackStack()
+            navController.navigate(NavRoutes.CUSTOM_RECIPES) {
+                popUpTo(NavRoutes.CUSTOM_RECIPE) { inclusive = true }
+            }
             viewModel.onNavigationHandled()
         }
     }
@@ -94,7 +95,6 @@ fun CustomRecipeScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Display Ingredients
         ingredients.forEach { ingredient ->
             Text(
                 text = "- $ingredient",
@@ -131,7 +131,6 @@ fun CustomRecipeScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Display Instructions
         instructions.forEachIndexed { index, instruction ->
             Text(
                 text = "${index + 1}. $instruction",
@@ -142,7 +141,6 @@ fun CustomRecipeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Nutrition Analysis
         Button(
             onClick = { viewModel.analyzeNutrition() },
             modifier = Modifier.fillMaxWidth(),
@@ -153,7 +151,6 @@ fun CustomRecipeScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Display Nutrition
         nutritionInfo?.let { nutrition ->
             if (nutrition != Nutrition(0, 0, 0, 0)) {
                 Text(
@@ -186,7 +183,27 @@ fun CustomRecipeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Error Message
+        // Debug Buttons for Collection Creation
+        Button(
+            onClick = { viewModel.debugCreateCollection("custom_recipes") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading
+        ) {
+            Text("Debug: Create custom_recipes")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = { viewModel.debugCreateCollection("meal_plans") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading
+        ) {
+            Text("Debug: Create meal_plans")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         error?.let {
             Text(
                 text = it,
@@ -195,17 +212,13 @@ fun CustomRecipeScreen(
             )
         }
 
-        // Save Button
         Button(
             onClick = { viewModel.saveRecipe() },
             modifier = Modifier.fillMaxWidth(),
-            enabled = recipeTitle.isNotBlank() && ingredients.isNotEmpty() && !isLoading
+            enabled = recipeTitle.isNotBlank() && ingredients.isNotEmpty()
         ) {
             Text("Save Recipe")
         }
 
-        if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-        }
     }
 }

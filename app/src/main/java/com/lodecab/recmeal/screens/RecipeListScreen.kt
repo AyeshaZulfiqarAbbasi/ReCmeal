@@ -1,3 +1,6 @@
+package com.lodecab.recmeal.screens
+
+import NavRoutes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,8 +14,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -68,6 +73,20 @@ fun RecipeListScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             Row {
+                IconButton(onClick = { navController.navigate(NavRoutes.CUSTOM_RECIPE) }) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Create Custom Recipe",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                IconButton(onClick = { navController.navigate(NavRoutes.CUSTOM_RECIPES) }) {
+                    Icon(
+                        imageVector = Icons.Default.List,
+                        contentDescription = "View Custom Recipes",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 IconButton(onClick = { navController.navigate(NavRoutes.FAVORITES) }) {
                     Icon(
                         imageVector = Icons.Default.Favorite,
@@ -77,7 +96,7 @@ fun RecipeListScreen(
                 }
                 IconButton(onClick = { navController.navigate(NavRoutes.MEAL_PLANNER) }) {
                     Icon(
-                        imageVector = Icons.Filled.CalendarToday,
+                        imageVector = Icons.Default.CalendarToday,
                         contentDescription = "Go to Meal Planner",
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -209,7 +228,7 @@ fun RecipeListScreen(
                         usedIngredientCount = recipe.usedIngredientCount,
                         missedIngredientCount = recipe.missedIngredientCount,
                         onClick = {
-                            navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id))
+                            navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id, isCustom = false))
                         },
                         useCard = true
                     )

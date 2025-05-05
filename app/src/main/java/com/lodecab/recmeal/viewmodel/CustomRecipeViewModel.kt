@@ -8,17 +8,23 @@ import com.lodecab.recmeal.data.CustomRecipe
 import com.lodecab.recmeal.data.Nutrition
 import com.lodecab.recmeal.data.RecipeRepository
 import com.lodecab.recmeal.data.SpoonacularApiService
+import com.lodecab.recmeal.utils.NetworkUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import retrofit2.HttpException
 import javax.inject.Inject
 
 @HiltViewModel
 class CustomRecipeViewModel @Inject constructor(
     private val recipeRepository: RecipeRepository,
-    private val spoonacularApiService: SpoonacularApiService
+    private val spoonacularApiService: SpoonacularApiService,
+    private val networkUtils: NetworkUtils
 ) : ViewModel() {
     private val _recipeTitle = MutableStateFlow("")
     val recipeTitle: StateFlow<String> = _recipeTitle.asStateFlow()
@@ -59,7 +65,7 @@ class CustomRecipeViewModel @Inject constructor(
 
     fun addInstruction(instruction: String) {
         if (instruction.isNotBlank()) {
-            _instructions.value = _instructions.value + instruction.trim()
+            _instructions.value += instruction.trim()
         }
     }
 
@@ -68,12 +74,17 @@ class CustomRecipeViewModel @Inject constructor(
             _error.value = "Please add at least one ingredient to analyze nutrition."
             return
         }
+        if (!networkUtils.isNetworkAvailable()) {
+            _error.value = "Nutrition analysis requires an internet connection."
+            return
+        }
 
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
-                val ingredientList = _ingredients.value
+                Log.d("CustomRecipeViewModel", "Using API Key: ${BuildConfig.SPOONACULAR_API_KEY}")
+                val ingredientList = _ingredients.value.joinToString("\n")
                 Log.d("CustomRecipeViewModel", "Analyzing ingredients: $ingredientList")
 
                 var totalCalories = 0.0
@@ -82,9 +93,10 @@ class CustomRecipeViewModel @Inject constructor(
                 var totalCarbohydrates = 0.0
 
                 // Step 1: Parse ingredients to get names, amounts, and units
-                val parsedIngredients = spoonacularApiService.parseIngredients(
+                val parsedIngredients: List<com.lodecab.recmeal.data.ParsedIngredient> = spoonacularApiService.parseIngredients(
                     apiKey = BuildConfig.SPOONACULAR_API_KEY,
-                    ingredientList = ingredientList.joinToString("\n")
+                    servings = 1,
+                    ingredientList = ingredientList
                 )
                 Log.d("CustomRecipeViewModel", "Parsed Ingredients: $parsedIngredients")
 
@@ -116,10 +128,10 @@ class CustomRecipeViewModel @Inject constructor(
                             val nutrientName = nutrient.name.trim().lowercase()
                             Log.d("CustomRecipeViewModel", "Nutrient: $nutrientName, Amount: ${nutrient.amount}, Unit: ${nutrient.unit}")
                             when (nutrientName) {
-                                "calories", "energy", "kcal" -> totalCalories += nutrient.amount
-                                "protein" -> totalProtein += nutrient.amount
-                                "fat", "total fat", "lipid" -> totalFat += nutrient.amount
-                                "carbohydrates", "carbs", "total carbohydrate", "carbohydrate" -> totalCarbohydrates += nutrient.amount
+                                "calories", "energy", "kcal" -> totalCalories += nutrient.amount.toDouble()
+                                "protein" -> totalProtein += nutrient.amount.toDouble()
+                                "fat", "total fat", "lipid" -> totalFat += nutrient.amount.toDouble()
+                                "carbohydrates", "carbs", "total carbohydrate", "carbohydrate" -> totalCarbohydrates += nutrient.amount.toDouble()
                             }
                         }
                     } catch (e: Exception) {
@@ -135,6 +147,13 @@ class CustomRecipeViewModel @Inject constructor(
                     fat = totalFat.toInt(),
                     carbohydrates = totalCarbohydrates.toInt()
                 )
+            } catch (e: HttpException) {
+                if (e.code() == 401) {
+                    _error.value = "Nutrition analysis failed: Invalid or expired API key. Please check your Spoonacular API key."
+                } else {
+                    _error.value = "Failed to analyze nutrition: HTTP ${e.code()}"
+                }
+                Log.e("CustomRecipeViewModel", "Nutrition analysis error: ${e.message}", e)
             } catch (e: Exception) {
                 _error.value = "Failed to analyze nutrition: ${e.message}"
                 Log.e("CustomRecipeViewModel", "Nutrition analysis error: ${e.message}", e)
@@ -154,29 +173,44 @@ class CustomRecipeViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
-            _isLoading.value = true
-            _error.value = null
-            try {
-                val nutrition = _nutritionInfo.value?.takeIf { it != Nutrition(0, 0, 0, 0) }
-                val customRecipe = CustomRecipe(
-                    title = _recipeTitle.value,
-                    ingredients = _ingredients.value,
-                    instructions = _instructions.value,
-                    nutrition = nutrition
-                )
-                recipeRepository.insertCustomRecipe(customRecipe)
+        _isLoading.value = true
+        _error.value = null
+
+        val nutrition = _nutritionInfo.value?.takeIf { it != Nutrition(0, 0, 0, 0) }
+        val customRecipe = CustomRecipe(
+            title = _recipeTitle.value,
+            ingredients = _ingredients.value,
+            instructions = _instructions.value,
+            nutrition = nutrition
+        )
+
+        Log.d("CustomRecipeViewModel", "Attempting to save recipe: ${_recipeTitle.value}")
+        Log.d("CustomRecipeViewModel", "Custom Recipe: $customRecipe")
+
+        recipeRepository.insertCustomRecipe(customRecipe) { success, errorMessage ->
+            if (success) {
+                Log.d("CustomRecipeViewModel", "Recipe saved successfully")
                 _recipeTitle.value = ""
                 _ingredients.value = emptyList()
                 _instructions.value = emptyList()
                 _nutritionInfo.value = null
                 _navigateToRecipeList.value = true
-            } catch (e: Exception) {
-                _error.value = "Failed to save recipe: ${e.message}"
-                Log.e("CustomRecipeViewModel", "Failed to save recipe: ${e.message}", e)
-            } finally {
-                _isLoading.value = false
+            } else {
+                _error.value = errorMessage ?: "Unknown error occurred"
+                Log.e("CustomRecipeViewModel", "Failed to save recipe: $errorMessage")
             }
+            _isLoading.value = false
+        }
+    }
+    fun debugCreateCollection(collectionName: String) {
+        _isLoading.value = true
+        recipeRepository.debugCreateCollection(collectionName) { success, errorMessage ->
+            if (success) {
+                _error.value = "Successfully created collection: $collectionName"
+            } else {
+                _error.value = errorMessage ?: "Failed to create collection: $collectionName"
+            }
+            _isLoading.value = false
         }
     }
 

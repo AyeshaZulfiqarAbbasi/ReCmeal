@@ -30,7 +30,10 @@ android {
         if (localPropertiesFile.exists()) {
             localProperties.load(localPropertiesFile.inputStream())
         }
-        val apiKey = localProperties.getProperty("spoonacularApiKey") ?: "05c8fa87d3c344fda242e79b646e4c28"
+        val apiKey = localProperties.getProperty("spoonacularApiKey")
+        if (apiKey == null) {
+            throw GradleException("Spoonacular API key not found in local.properties. Please add 'spoonacularApiKey=YOUR_API_KEY' to local.properties.")
+        }
         buildConfigField("String", "SPOONACULAR_API_KEY", "\"$apiKey\"")
 
     }

@@ -1,7 +1,5 @@
 package com.lodecab.recmeal
 
-
-import RecipeListScreen
 import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -15,11 +13,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.lodecab.recmeal.screens.FavoritesScreen
-import com.lodecab.recmeal.screens.LoginScreen
-import com.lodecab.recmeal.screens.MealPlannerScreen
-import com.lodecab.recmeal.screens.ProfileScreen
-import com.lodecab.recmeal.screens.RecipeDetailsScreen
+import com.lodecab.recmeal.screens.*
 import com.lodecab.recmeal.ui.theme.RecMealTheme
 import com.lodecab.recmeal.viewmodel.AuthState
 import com.lodecab.recmeal.viewmodel.AuthViewModel
@@ -69,9 +63,16 @@ fun AppNavigation(
         }
         composable(NavRoutes.RECIPE_DETAILS) { backStackEntry ->
             val recipeId = backStackEntry.arguments?.getString("recipeId")?.toIntOrNull()
+            val isCustom = backStackEntry.arguments?.getString("isCustom")?.toBoolean() ?: false
+            val firestoreDocId = backStackEntry.arguments?.getString("firestoreDocId")
             val mainViewModel: MainViewModel = hiltViewModel(navController.getBackStackEntry(NavRoutes.RECIPE_LIST))
             if (recipeId != null) {
-                RecipeDetailsScreen(recipeId = recipeId, navController = navController)
+                RecipeDetailsScreen(
+                    recipeId = recipeId,
+                    isCustom = isCustom,
+                    firestoreDocId = firestoreDocId,
+                    navController = navController
+                )
             } else {
                 mainViewModel.setNavigationError("Invalid recipe ID. Please try again.")
                 navController.navigate(NavRoutes.RECIPE_LIST) {
@@ -79,6 +80,12 @@ fun AppNavigation(
                     launchSingleTop = true
                 }
             }
+        }
+        composable(NavRoutes.CUSTOM_RECIPE) {
+            CustomRecipeScreen(navController = navController)
+        }
+        composable(NavRoutes.CUSTOM_RECIPES) {
+            CustomRecipesScreen(navController = navController)
         }
         composable(NavRoutes.FAVORITES) {
             FavoritesScreen(navController = navController)

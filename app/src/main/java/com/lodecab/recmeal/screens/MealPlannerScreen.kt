@@ -119,10 +119,10 @@ fun MealPlanItem(
             } else {
                 recipes.forEach { recipe ->
                     RecipeItem(
-                        title = recipe.recipeTitle,
+                        title = recipe.title,
                         image = recipe.recipeImage,
-                        onClick = { onRecipeClick(recipe.recipeId) },
-                        onRemove = { viewModel.removeRecipeFromMealPlan(mealPlan.date, recipe.recipeId) },
+                        onClick = { onRecipeClick(recipe.id) },
+                        onRemove = { viewModel.removeRecipeFromMealPlan(mealPlan.date, recipe.id) },
                         useCard = false
                     )
                 }
