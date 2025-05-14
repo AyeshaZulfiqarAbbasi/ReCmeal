@@ -8,7 +8,8 @@ object NavRoutes {
     const val MEAL_PLANNER = "meal_planner"
     const val PROFILE = "profile"
 
-    fun recipeDetailsRoute(recipeId: Int, isCustom: Boolean = false, firestoreDocId: String? = null): String {
+    fun recipeDetailsRoute(recipeId: String, isCustom: Boolean = false, firestoreDocId: String? = null): String {
         return "recipe_details/$recipeId/$isCustom/${firestoreDocId ?: "null"}"
     }
+
 }

@@ -13,15 +13,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.lodecab.recmeal.data.RecipeSummary
 
 @Composable
 fun RecipeItem(
+    recipe: RecipeSummary,
     title: String,
     image: String?,
-    usedIngredientCount: Int? = null,  // Make optional
-    missedIngredientCount: Int? = null,  // Make optional
     onClick: () -> Unit,
-    onRemove: (() -> Unit)? = null,  // Add optional onRemove parameter
+    onRemove: (() -> Unit)? = null,
     useCard: Boolean = false
 ) {
     val content = @Composable {
@@ -50,14 +50,9 @@ fun RecipeItem(
                         text = title,
                         style = MaterialTheme.typography.titleMedium
                     )
-                    Text(
-                        text = "Used Ingredients: $usedIngredientCount, Missed: $missedIngredientCount",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
+                    // Remove "Used Ingredients" and "Missed" text to avoid null exceptions
                 }
             }
-            // Add remove button if onRemove is provided
             if (onRemove != null) {
                 IconButton(onClick = onRemove) {
                     Icon(
@@ -74,10 +69,14 @@ fun RecipeItem(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 8.dp)
+                .clickable(onClick = onClick),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            content()
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = recipe.title, style = MaterialTheme.typography.titleMedium)
+                // Other UI elements...
+            }
         }
     } else {
         content()

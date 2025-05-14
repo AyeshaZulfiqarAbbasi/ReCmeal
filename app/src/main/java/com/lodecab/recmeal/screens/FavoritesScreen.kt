@@ -65,12 +65,11 @@ fun FavoritesScreen(
             LazyColumn {
                 items(favorites) { recipe ->
                     RecipeItem(
+                        recipe = recipe,
                         title = recipe.title,
                         image = recipe.image,
-                        usedIngredientCount = recipe.usedIngredientCount,
-                        missedIngredientCount = recipe.missedIngredientCount,
                         onClick = {
-                            navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id))
+                            navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id.toString(), isCustom = false, firestoreDocId = null))
                         },
                         onRemove = {
                             viewModel.removeFavorite(recipe.id)

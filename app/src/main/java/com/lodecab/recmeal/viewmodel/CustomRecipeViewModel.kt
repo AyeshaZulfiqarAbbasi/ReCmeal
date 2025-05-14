@@ -3,6 +3,7 @@ package com.lodecab.recmeal.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
 import com.lodecab.recmeal.BuildConfig
 import com.lodecab.recmeal.data.CustomRecipe
 import com.lodecab.recmeal.data.Nutrition
@@ -10,13 +11,14 @@ import com.lodecab.recmeal.data.RecipeRepository
 import com.lodecab.recmeal.data.SpoonacularApiService
 import com.lodecab.recmeal.utils.NetworkUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import retrofit2.HttpException
 import javax.inject.Inject
 
@@ -47,6 +49,55 @@ class CustomRecipeViewModel @Inject constructor(
     private val _navigateToRecipeList = MutableStateFlow(false)
     val navigateToRecipeList: StateFlow<Boolean> = _navigateToRecipeList.asStateFlow()
 
+    private val _customRecipe = MutableStateFlow<CustomRecipe?>(null)
+    val customRecipe: StateFlow<CustomRecipe?> = _customRecipe.asStateFlow()
+
+    fun fetchCustomRecipe(firestoreDocId: String) { // Should accept only firestoreDocId
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+
+            try {
+                val userId = FirebaseAuth.getInstance().currentUser?.uid
+                    ?: throw Exception("User not authenticated")
+                Log.d("CustomRecipeViewModel", "Fetching recipe for userId: $userId, firestoreDocId: $firestoreDocId")
+                val recipe = recipeRepository.getCustomRecipe(firestoreDocId, userId)
+                _customRecipe.value = recipe
+                Log.d("CustomRecipeViewModel", "Fetched custom recipe: ${recipe?.title ?: "null"}")
+            } catch (e: Exception) {
+                Log.e("CustomRecipeViewModel", "Error fetching custom recipe $firestoreDocId: ${e.message}", e)
+                _error.value = "Failed to load recipe: ${e.message}"
+                _customRecipe.value = null
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    // Expose a combined flow for UI convenience (optional)
+    fun observeRecipeState(): Flow<RecipeState> = combine(
+        customRecipe,
+        isLoading,
+        error
+    ) { recipe, loading, error ->
+        RecipeState(recipe, loading, error)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = RecipeState(null, false, null)
+    )
+
+
+// Data class to hold the combined state
+data class RecipeState(
+    val recipe: CustomRecipe?,
+    val isLoading: Boolean,
+    val error: String?,
+
+)
+
+
+
     fun updateRecipeTitle(title: String) {
         _recipeTitle.value = title
     }
@@ -56,7 +107,7 @@ class CustomRecipeViewModel @Inject constructor(
             val hasQuantity = ingredient.contains(Regex("\\d+"))
             val hasUnitOrName = ingredient.contains(Regex("\\w+\\s+\\w+"))
             if (hasQuantity && hasUnitOrName) {
-                _ingredients.value = _ingredients.value + ingredient.trim()
+                _ingredients.value += ingredient.trim()
             } else {
                 _error.value = "Please include a quantity and unit (e.g., 1 cup water)"
             }
@@ -128,10 +179,10 @@ class CustomRecipeViewModel @Inject constructor(
                             val nutrientName = nutrient.name.trim().lowercase()
                             Log.d("CustomRecipeViewModel", "Nutrient: $nutrientName, Amount: ${nutrient.amount}, Unit: ${nutrient.unit}")
                             when (nutrientName) {
-                                "calories", "energy", "kcal" -> totalCalories += nutrient.amount.toDouble()
-                                "protein" -> totalProtein += nutrient.amount.toDouble()
-                                "fat", "total fat", "lipid" -> totalFat += nutrient.amount.toDouble()
-                                "carbohydrates", "carbs", "total carbohydrate", "carbohydrate" -> totalCarbohydrates += nutrient.amount.toDouble()
+                                "calories", "energy", "kcal" -> totalCalories += nutrient.amount
+                                "protein" -> totalProtein += nutrient.amount
+                                "fat", "total fat", "lipid" -> totalFat += nutrient.amount
+                                "carbohydrates", "carbs", "total carbohydrate", "carbohydrate" -> totalCarbohydrates += nutrient.amount
                             }
                         }
                     } catch (e: Exception) {

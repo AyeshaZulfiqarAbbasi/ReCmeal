@@ -25,7 +25,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecipeDetailsScreen(
-    recipeId: Int,
+    recipeId: Int?, // Change to Int?
     isCustom: Boolean,
     firestoreDocId: String?,
     navController: NavHostController,
@@ -44,7 +44,7 @@ fun RecipeDetailsScreen(
     LaunchedEffect(recipeId, isCustom, firestoreDocId) {
         if (isCustom && firestoreDocId != null && firestoreDocId != "null") {
             viewModel.fetchCustomRecipe(firestoreDocId)
-        } else {
+        } else if (recipeId != null) { // Check for null
             viewModel.fetchRecipeDetails(recipeId)
         }
     }
@@ -220,96 +220,6 @@ fun RecipeDetailsScreen(
                         text = "Carbohydrates: ${details.nutrition.carbohydrates}g",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
-                    )
-                }
-            }
-            !isCustom && recipeDetails != null -> {
-                val details = recipeDetails!!
-                Text(
-                    text = details.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                details.image?.let { imageUrl ->
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = "Recipe Image",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .padding(bottom = 8.dp),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Ready in: ${details.readyInMinutes} minutes",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "Servings: ${details.servings}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                Text(
-                    text = "Ingredients:",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-                val ingredientsList = details.ingredients
-                ingredientsList.forEach { ingredient ->
-                    Text(
-                        text = "- ${ingredient.name}: ${ingredient.amount} ${ingredient.unit}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                Text(
-                    text = "Instructions:",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-
-                val instructions = details.instructions
-                val analyzedInstructions = details.analyzedInstructions
-                if (analyzedInstructions?.isNotEmpty() == true) {
-                    analyzedInstructions.forEach { instruction ->
-                        instruction.steps.forEach { step ->
-                            Text(
-                                text = "${step.number}. ${step.step}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
-                            )
-                        }
-                    }
-                } else if (!instructions.isNullOrBlank()) {
-                    val plainInstructions = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                        Html.fromHtml(instructions, Html.FROM_HTML_MODE_COMPACT).toString()
-                    } else {
-                        @Suppress("DEPRECATION")
-                        Html.fromHtml(instructions).toString()
-                    }
-                    Text(
-                        text = plainInstructions,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                } else {
-                    Text(
-                        text = "No instructions available for this recipe.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
             }

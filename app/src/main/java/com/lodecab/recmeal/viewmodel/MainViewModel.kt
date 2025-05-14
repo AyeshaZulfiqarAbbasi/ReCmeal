@@ -16,7 +16,7 @@ import javax.inject.Named
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val apiService: SpoonacularApiService,
-    @Named("spoonacularApiKey") private val apiKey: String  // Inject the API key
+    @Named("spoonacularApiKey") private val apiKey: String
 ) : ViewModel() {
 
     private val _recipes = MutableStateFlow<List<RecipeSummary>>(emptyList())
@@ -28,30 +28,50 @@ class MainViewModel @Inject constructor(
     private val _ingredientSuggestions = MutableStateFlow<List<IngredientSuggestion>>(emptyList())
     val ingredientSuggestions: StateFlow<List<IngredientSuggestion>> = _ingredientSuggestions.asStateFlow()
 
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _navigationError = MutableStateFlow<String?>(null)
+    val navigationError: StateFlow<String?> = _navigationError.asStateFlow()
+
     fun searchRecipes(ingredients: String) {
         viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
             try {
                 val response = apiService.findRecipesByIngredients(
                     ingredients = ingredients,
-                    apiKey = apiKey  // Use injected key
+                    apiKey = apiKey,
+                    number = 10
                 )
                 _recipes.value = response
             } catch (e: Exception) {
                 _error.value = "Failed to load recipes: ${e.message}"
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
     fun fetchIngredientSuggestions(query: String) {
         viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
             try {
-                val suggestions = apiService.autocompleteIngredients(
-                    query = query,
-                    apiKey = apiKey  // Use injected key
-                )
-                _ingredientSuggestions.value = suggestions
+                if (query.isNotBlank()) {
+                    val suggestions = apiService.autocompleteIngredients(
+                        query = query,
+                        apiKey = apiKey,
+                        number = 5
+                    )
+                    _ingredientSuggestions.value = suggestions
+                } else {
+                    _ingredientSuggestions.value = emptyList()
+                }
             } catch (e: Exception) {
                 _error.value = "Failed to load ingredient suggestions: ${e.message}"
+            } finally {
+                _isLoading.value = false
             }
         }
     }
@@ -67,8 +87,6 @@ class MainViewModel @Inject constructor(
     fun clearError() {
         _error.value = null
     }
-    private val _navigationError = MutableStateFlow<String?>(null)
-    val navigationError: StateFlow<String?> = _navigationError.asStateFlow()
 
     fun setNavigationError(message: String) {
         _navigationError.value = message

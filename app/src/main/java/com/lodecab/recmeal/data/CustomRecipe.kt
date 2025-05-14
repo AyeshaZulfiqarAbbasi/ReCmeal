@@ -8,8 +8,12 @@ data class CustomRecipe(
     val title: String = "",
     val ingredients: List<String> = emptyList(),
     val instructions: List<String> = emptyList(),
-    val nutrition: Nutrition? = null
+    val nutrition: Nutrition?
 )
+{
+    @Suppress("unused") // Required for Firestore deserialization
+    constructor() : this("", "", emptyList(), emptyList(), null)
+}
 
 data class Nutrition(
     val calories: Int = 0,
@@ -17,3 +21,7 @@ data class Nutrition(
     val fat: Int = 0,
     val carbohydrates: Int = 0
 )
+{
+    @Suppress("unused") // Required for Firestore deserialization
+    constructor() : this(0, 0, 0, 0)
+}

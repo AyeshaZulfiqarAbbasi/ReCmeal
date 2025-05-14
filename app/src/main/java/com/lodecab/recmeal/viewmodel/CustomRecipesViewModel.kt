@@ -11,9 +11,11 @@ import com.lodecab.recmeal.data.MealPlanRecipeEntity
 import com.lodecab.recmeal.data.RecipeRepository
 import com.lodecab.recmeal.utils.NetworkUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
@@ -33,10 +35,29 @@ class CustomRecipesViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _customRecipe = MutableStateFlow<CustomRecipe?>(null)
+    val customRecipe: Flow<CustomRecipe?> = _customRecipe.asStateFlow()
+
     init {
         fetchCustomRecipes()
     }
 
+    fun getCustomRecipe(firestoreDocId: String): Flow<CustomRecipe?> {
+        return flow {
+            val userId = firebaseAuth.currentUser?.uid ?: throw Exception("User not authenticated")
+            try {
+                Log.d("CustomRecipeViewModel", "Fetching custom recipe for userId: $userId, firestoreDocId: $firestoreDocId")
+                val recipe = recipeRepository.getCustomRecipe(firestoreDocId, userId)
+                _customRecipe.value = recipe
+                emit(recipe)
+                Log.d("CustomRecipeViewModel", "Fetched custom recipe: ${recipe?.title ?: "null"}")
+            } catch (e: Exception) {
+                Log.e("CustomRecipeViewModel", "Error fetching custom recipe $firestoreDocId: ${e.message}", e)
+                _customRecipe.value = null
+                emit(null)
+            }
+        }
+    }
 
     fun addRecipeToMealPlan(date: String, recipe: CustomRecipe) {
         viewModelScope.launch {
@@ -46,13 +67,15 @@ class CustomRecipesViewModel @Inject constructor(
 
                 val mealPlanRecipe = MealPlanRecipeEntity(
                     date = date,
-                    id = recipe.id.toIntOrNull() ?: 0,
+                    rawId = recipe.id, // Change from 'id' to 'rawId'
                     title = recipe.title,
                     recipeImage = null,
                     isCustom = true,
                     firestoreDocId = recipe.id
                 )
+                Log.d("CustomRecipesViewModel", "Inserting meal plan recipe: $mealPlanRecipe")
                 recipeRepository.insertMealPlanRecipe(date, mealPlanRecipe)
+                Log.d("CustomRecipesViewModel", "Meal plan recipe inserted successfully")
             } catch (e: Exception) {
                 _error.value = if (!networkUtils.isNetworkAvailable()) {
                     "You are offline. Recipe will sync when the network is available."

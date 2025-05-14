@@ -1,10 +1,11 @@
 package com.lodecab.recmeal.screens
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,11 +14,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.lodecab.recmeal.data.MealPlanEntity
+import com.lodecab.recmeal.data.RecipeSummary
 import com.lodecab.recmeal.ui.RecipeItem
 import com.lodecab.recmeal.viewmodel.AuthState
 import com.lodecab.recmeal.viewmodel.AuthViewModel
 import com.lodecab.recmeal.viewmodel.MealPlannerViewModel
-
 
 @Composable
 fun MealPlannerScreen(
@@ -29,7 +30,6 @@ fun MealPlannerScreen(
     val mealPlans by viewModel.mealPlans.collectAsState(initial = null)
     val authState by authViewModel.authState.collectAsState()
 
-    // Redirect to login if not signed in
     LaunchedEffect(authState) {
         if (authState is AuthState.SignedOut) {
             navController.navigate(NavRoutes.LOGIN) {
@@ -49,13 +49,13 @@ fun MealPlannerScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
             Text(
                 text = "Meal Planner",
                 style = MaterialTheme.typography.titleLarge
             )
-            Spacer(modifier = Modifier.width(48.dp)) // To balance the layout
+            Spacer(modifier = Modifier.width(48.dp))
         }
 
         when {
@@ -77,8 +77,19 @@ fun MealPlannerScreen(
                         MealPlanItem(
                             mealPlan = mealPlan,
                             viewModel = viewModel,
-                            onRecipeClick = { recipeId ->
-                                navController.navigate(NavRoutes.recipeDetailsRoute(recipeId))
+                            onRecipeClick = { recipeId, isCustom ->
+                                if (isCustom) {
+                                    Log.d("MealPlannerScreen", "Navigating to custom recipe details: $recipeId")
+                                    navController.navigate(NavRoutes.recipeDetailsRoute(recipeId, isCustom = true, firestoreDocId = recipeId))
+                                } else {
+                                    val recipeIdInt = recipeId.toIntOrNull()
+                                    if (recipeIdInt != null) {
+                                        Log.d("MealPlannerScreen", "Navigating to Spoonacular recipe details: $recipeIdInt")
+                                        navController.navigate(NavRoutes.recipeDetailsRoute(recipeIdInt.toString(), isCustom = false))
+                                    } else {
+                                        Log.e("MealPlannerScreen", "Failed to parse recipeId as Int: $recipeId")
+                                    }
+                                }
                             }
                         )
                     }
@@ -92,7 +103,7 @@ fun MealPlannerScreen(
 fun MealPlanItem(
     mealPlan: MealPlanEntity,
     viewModel: MealPlannerViewModel,
-    onRecipeClick: (Int) -> Unit
+    onRecipeClick: (String, Boolean) -> Unit
 ) {
     val recipes by viewModel.getRecipesForDate(mealPlan.date).collectAsState(initial = emptyList())
 
@@ -118,10 +129,16 @@ fun MealPlanItem(
                 )
             } else {
                 recipes.forEach { recipe ->
+                    val recipeSummary = RecipeSummary(
+                        id = recipe.id.toIntOrNull() ?: 0, // Adjust based on actual mapping
+                        title = recipe.title,
+                        image = recipe.recipeImage
+                    )
                     RecipeItem(
+                        recipe = recipeSummary,
                         title = recipe.title,
                         image = recipe.recipeImage,
-                        onClick = { onRecipeClick(recipe.id) },
+                        onClick = { onRecipeClick(recipe.id, recipe.isCustom) },
                         onRemove = { viewModel.removeRecipeFromMealPlan(mealPlan.date, recipe.id) },
                         useCard = false
                     )

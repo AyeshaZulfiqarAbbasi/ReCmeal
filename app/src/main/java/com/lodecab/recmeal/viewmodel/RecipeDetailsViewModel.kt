@@ -61,7 +61,7 @@ class RecipeDetailsViewModel @Inject constructor(
                 val recipe = snapshot.toObject(CustomRecipe::class.java)?.copy(id = snapshot.id)
                 _customRecipe.value = recipe
                 if (recipe != null) {
-                    checkIfFavorite(recipe.id.toIntOrNull() ?: 0)
+                    checkIfFavorite(recipe.id.hashCode())
                 }
             } catch (e: Exception) {
                 _error.value = "Failed to load custom recipe: ${e.message}"
@@ -103,7 +103,7 @@ class RecipeDetailsViewModel @Inject constructor(
                     }
                     is CustomRecipe -> {
                         val recipeSummary = RecipeSummary(
-                            id = recipe.id.toIntOrNull() ?: 0,
+                            id = recipe.id.hashCode(),
                             title = recipe.title,
                             image = null,
                             usedIngredientCount = 0,
@@ -131,7 +131,7 @@ class RecipeDetailsViewModel @Inject constructor(
                 val mealPlan = MealPlanEntity(date = date, name = "Meal Plan for $date")
                 val mealPlanRecipe = MealPlanRecipeEntity(
                     date = date,
-                    id = recipe.id,
+                    rawId = recipe.id.toString(),
                     title = recipe.title,
                     recipeImage = recipe.image,
                     isCustom = false,
@@ -152,7 +152,7 @@ class RecipeDetailsViewModel @Inject constructor(
                 val mealPlan = MealPlanEntity(date = date, name = "Meal Plan for $date")
                 val mealPlanRecipe = MealPlanRecipeEntity(
                     date = date,
-                    id = recipe.id.toIntOrNull() ?: 0,
+                    rawId = recipe.id,
                     title = recipe.title,
                     recipeImage = null,
                     isCustom = true,

@@ -1,43 +1,24 @@
 package com.lodecab.recmeal.screens
 
 import NavRoutes
+import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.lodecab.recmeal.data.CustomRecipe
 import com.lodecab.recmeal.viewmodel.CustomRecipesViewModel
+import java.util.Calendar
 
 @Composable
 fun CustomRecipesScreen(
@@ -93,11 +74,10 @@ fun CustomRecipesScreen(
                         onDelete = { viewModel.deleteCustomRecipe(recipe.id) },
                         onAddToMealPlan = { date ->
                             viewModel.addRecipeToMealPlan(date, recipe)
-                            // Navigate to MealPlannerScreen to see the updated meal plan
                             navController.navigate(NavRoutes.MEAL_PLANNER)
                         },
                         onClick = {
-                            navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id.toInt(), isCustom = true, firestoreDocId = recipe.id))
+                            navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id, isCustom = true, firestoreDocId = recipe.id))
                         }
                     )
                 }
@@ -113,9 +93,15 @@ fun CustomRecipeItem(
     onAddToMealPlan: (String) -> Unit,
     onClick: () -> Unit
 ) {
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf("") }
-    var dateError by remember { mutableStateOf<String?>(null) }
+
+    // Context for launching the DatePickerDialog
+    val context = LocalContext.current
+    val calendar = Calendar.getInstance()
+    val year = calendar.get(Calendar.YEAR)
+    val month = calendar.get(Calendar.MONTH)
+    val day = calendar.get(Calendar.DAY_OF_MONTH)
 
     Card(
         modifier = Modifier
@@ -153,7 +139,7 @@ fun CustomRecipeItem(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Button(onClick = { showDatePicker = true }) {
+                Button(onClick = { showDatePickerDialog = true }) {
                     Text("Add to Meal Plan")
                 }
                 OutlinedButton(onClick = onDelete) {
@@ -163,60 +149,31 @@ fun CustomRecipeItem(
         }
     }
 
-    if (showDatePicker) {
-        AlertDialog(
-            onDismissRequest = { showDatePicker = false },
-            title = { Text("Select Date for Meal Plan") },
-            text = {
-                Column {
-                    Text("Enter date (YYYY-MM-DD):")
-                    OutlinedTextField(
-                        value = selectedDate,
-                        onValueChange = {
-                            selectedDate = it
-                            // Validate the date format
-                            dateError = if (selectedDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
-                                null
-                            } else {
-                                "Please use YYYY-MM-DD format"
-                            }
-                        },
-                        label = { Text("Date") },
-                        modifier = Modifier.fillMaxWidth(),
-                        isError = dateError != null
-                    )
-                    dateError?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                }
+    if (showDatePickerDialog) {
+        // Show DatePickerDialog
+        DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                // Format the selected date as YYYY-MM-DD
+                val formattedDate = String.format("%d-%02d-%02d", selectedYear, selectedMonth + 1, selectedDay)
+                selectedDate = formattedDate
+                onAddToMealPlan(formattedDate)
+                showDatePickerDialog = false
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (selectedDate.isNotBlank() && dateError == null) {
-                            onAddToMealPlan(selectedDate)
-                            showDatePicker = false
-                        }
-                    },
-                    enabled = selectedDate.isNotBlank() && dateError == null
-                ) {
-                    Text("Add")
-                }
-            },
-            dismissButton = {
-                Button(onClick = {
-                    showDatePicker = false
-                    selectedDate = ""
-                    dateError = null
-                }) {
-                    Text("Cancel")
-                }
+            year,
+            month,
+            day
+        ).apply {
+            // Optional: Set a minimum date to prevent selecting past dates
+            datePicker.minDate = calendar.timeInMillis
+            show()
+        }
+
+        // Reset the dialog state after showing to prevent re-showing on recomposition
+        LaunchedEffect(showDatePickerDialog) {
+            if (showDatePickerDialog) {
+                showDatePickerDialog = false
             }
-        )
+        }
     }
 }

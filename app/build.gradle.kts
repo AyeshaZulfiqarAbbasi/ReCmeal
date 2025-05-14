@@ -69,6 +69,7 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.material3.android)
     implementation(libs.firebase.crashlytics.buildtools)
+    implementation(libs.androidx.navigation.common.android)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

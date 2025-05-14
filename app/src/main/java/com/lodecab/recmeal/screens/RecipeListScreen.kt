@@ -1,15 +1,9 @@
 package com.lodecab.recmeal.screens
 
 import NavRoutes
+import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,29 +12,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.lodecab.recmeal.ui.RecipeItem
@@ -57,61 +39,160 @@ fun RecipeListScreen(
     val recipes by viewModel.recipes.collectAsState()
     val error by viewModel.error.collectAsState()
     val ingredientSuggestions by viewModel.ingredientSuggestions.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    // Log screen width only once when the composable is first composed
+    LaunchedEffect(Unit) {
+        Log.d("ScreenWidth", "Screen width in dp: $screenWidthDp")
+    }
 
     Column(
         modifier = modifier
+            .fillMaxSize()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
+        // Add padding to move content below the camera notch
+        Spacer(modifier = Modifier.height(24.dp)) // Adjust this value based on notch height
+
+        // Header with title and navigation icons
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+                .zIndex(1f) // Ensure header is above other elements
+                .background(Color.Transparent),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "Find Recipes",
                 style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .wrapContentWidth(Alignment.Start)
             )
-            Row {
-                IconButton(onClick = { navController.navigate(NavRoutes.CUSTOM_RECIPE) }) {
+            // Adaptive navigation icons
+            if (screenWidthDp >= 250) {
+                // Show all icons on wider screens
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.background(Color.Transparent)
+                ) {
+                    IconButton(
+                        onClick = { navController.navigate(NavRoutes.CUSTOM_RECIPE) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Create Custom Recipe",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(
+                        onClick = { navController.navigate(NavRoutes.CUSTOM_RECIPES) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.List,
+                            contentDescription = "View Custom Recipes",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(
+                        onClick = { navController.navigate(NavRoutes.FAVORITES) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = "Go to Favorites",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(
+                        onClick = { navController.navigate(NavRoutes.MEAL_PLANNER) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = "Go to Meal Planner",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(
+                        onClick = { navController.navigate(NavRoutes.PROFILE) },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Go to Profile",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            } else {
+                // Show "More" button with dropdown on narrower screens
+                var expanded by remember { mutableStateOf(false) }
+                IconButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier.size(48.dp)
+                ) {
                     Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Create Custom Recipe",
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More Options",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
-                IconButton(onClick = { navController.navigate(NavRoutes.CUSTOM_RECIPES) }) {
-                    Icon(
-                        imageVector = Icons.Default.List,
-                        contentDescription = "View Custom Recipes",
-                        tint = MaterialTheme.colorScheme.primary
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface)
+                        .clip(RoundedCornerShape(8.dp))
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Create Custom Recipe") },
+                        onClick = {
+                            navController.navigate(NavRoutes.CUSTOM_RECIPE)
+                            expanded = false
+                        }
                     )
-                }
-                IconButton(onClick = { navController.navigate(NavRoutes.FAVORITES) }) {
-                    Icon(
-                        imageVector = Icons.Default.Favorite,
-                        contentDescription = "Go to Favorites",
-                        tint = MaterialTheme.colorScheme.primary
+                    DropdownMenuItem(
+                        text = { Text("View Custom Recipes") },
+                        onClick = {
+                            navController.navigate(NavRoutes.CUSTOM_RECIPES)
+                            expanded = false
+                        }
                     )
-                }
-                IconButton(onClick = { navController.navigate(NavRoutes.MEAL_PLANNER) }) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarToday,
-                        contentDescription = "Go to Meal Planner",
-                        tint = MaterialTheme.colorScheme.primary
+                    DropdownMenuItem(
+                        text = { Text("Favorites") },
+                        onClick = {
+                            navController.navigate(NavRoutes.FAVORITES)
+                            expanded = false
+                        }
                     )
-                }
-                IconButton(onClick = { navController.navigate(NavRoutes.PROFILE) }) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Go to Profile",
-                        tint = MaterialTheme.colorScheme.primary
+                    DropdownMenuItem(
+                        text = { Text("Meal Planner") },
+                        onClick = {
+                            navController.navigate(NavRoutes.MEAL_PLANNER)
+                            expanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Profile") },
+                        onClick = {
+                            navController.navigate(NavRoutes.PROFILE)
+                            expanded = false
+                        }
                     )
                 }
             }
         }
 
-        Box {
+        Box(
+            modifier = Modifier.zIndex(0f) // Ensure text field is below header
+        ) {
             OutlinedTextField(
                 value = searchQuery.value,
                 onValueChange = { newValue ->
@@ -145,6 +226,7 @@ fun RecipeListScreen(
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
                     .clip(RoundedCornerShape(8.dp))
+                    .zIndex(0f) // Ensure dropdown doesn’t overlap header
             ) {
                 ingredientSuggestions.forEach { suggestion ->
                     DropdownMenuItem(
@@ -214,26 +296,58 @@ fun RecipeListScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             LaunchedEffect(it) {
-                delay(3000) // Show for 3 seconds
-                viewModel.clearNavigationError()
+                delay(3000)
+                viewModel.clearError()
             }
         }
 
-        if (recipes.isNotEmpty()) {
-            LazyColumn {
-                items(recipes) { recipe ->
-                    RecipeItem(
-                        title = recipe.title,
-                        image = recipe.image,
-                        usedIngredientCount = recipe.usedIngredientCount,
-                        missedIngredientCount = recipe.missedIngredientCount,
-                        onClick = {
-                            navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id, isCustom = false))
-                        },
-                        useCard = true
-                    )
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (recipes.isEmpty() && searchQuery.value.isNotBlank()) {
+            Text(
+                text = "No recipes found. Try different ingredients.",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .align(Alignment.CenterHorizontally),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        } else if (recipes.isEmpty()) {
+            Text(
+                text = "Enter ingredients and search to find recipes!",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .align(Alignment.CenterHorizontally),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+            ) {
+                    items(recipes) { recipe ->
+                        RecipeItem(
+                            recipe = recipe,
+                            title = recipe.title,
+                            image = recipe.image,
+                            onClick = {
+                                navController.navigate(
+                                    NavRoutes.recipeDetailsRoute(
+                                        recipe.id.toString(),
+                                        isCustom = false,
+                                        firestoreDocId = null
+                                    )
+                                )
+                            },
+                            useCard = true
+                        )
+                    }
                 }
             }
         }
     }
-}
