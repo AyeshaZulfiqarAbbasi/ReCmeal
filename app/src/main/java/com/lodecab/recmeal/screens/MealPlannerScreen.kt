@@ -20,6 +20,7 @@ import com.lodecab.recmeal.viewmodel.AuthState
 import com.lodecab.recmeal.viewmodel.AuthViewModel
 import com.lodecab.recmeal.viewmodel.MealPlannerViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MealPlannerScreen(
     navController: NavHostController,
@@ -29,6 +30,7 @@ fun MealPlannerScreen(
 ) {
     val mealPlans by viewModel.mealPlans.collectAsState(initial = null)
     val authState by authViewModel.authState.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     LaunchedEffect(authState) {
         if (authState is AuthState.SignedOut) {
@@ -38,60 +40,77 @@ fun MealPlannerScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-            }
-            Text(
-                text = "Meal Planner",
-                style = MaterialTheme.typography.titleLarge
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Meal Planner") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
             )
-            Spacer(modifier = Modifier.width(48.dp))
         }
-
-        when {
-            mealPlans == null -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-            mealPlans!!.isEmpty() -> {
+    ) { paddingValues ->
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
+            if (error != null) {
                 Text(
-                    text = "No meal plans yet. Add recipes from the recipe details screen.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = error!!,
+                    color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
             }
-            else -> {
-                LazyColumn {
-                    items(mealPlans!!) { mealPlan ->
-                        MealPlanItem(
-                            mealPlan = mealPlan,
-                            viewModel = viewModel,
-                            onRecipeClick = { recipeId, isCustom ->
-                                if (isCustom) {
-                                    Log.d("MealPlannerScreen", "Navigating to custom recipe details: $recipeId")
-                                    navController.navigate(NavRoutes.recipeDetailsRoute(recipeId, isCustom = true, firestoreDocId = recipeId))
-                                } else {
-                                    val recipeIdInt = recipeId.toIntOrNull()
-                                    if (recipeIdInt != null) {
-                                        Log.d("MealPlannerScreen", "Navigating to Spoonacular recipe details: $recipeIdInt")
-                                        navController.navigate(NavRoutes.recipeDetailsRoute(recipeIdInt.toString(), isCustom = false))
-                                    } else {
-                                        Log.e("MealPlannerScreen", "Failed to parse recipeId as Int: $recipeId")
-                                    }
-                                }
-                            }
+
+            when {
+                mealPlans == null -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+                mealPlans!!.isEmpty() -> {
+                    Text(
+                        text = "No meal plans yet. Add recipes from the recipe details screen.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+                else -> {
+                    val validMealPlans = mealPlans!!.filter { it.date.matches("\\d{4}-\\d{2}-\\d{2}".toRegex()) }
+                        .sortedBy { it.date }
+                    if (validMealPlans.isEmpty()) {
+                        Text(
+                            text = "No valid meal plans found.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
                         )
+                    } else {
+                        LazyColumn {
+                            items(validMealPlans) { mealPlan ->
+                                MealPlanItem(
+                                    mealPlan = mealPlan,
+                                    viewModel = viewModel,
+                                    onRecipeClick = { recipeId, isCustom ->
+                                        if (isCustom) {
+                                            Log.d("MealPlannerScreen", "Navigating to custom recipe details: $recipeId")
+                                            navController.navigate(NavRoutes.recipeDetailsRoute(recipeId, isCustom = true, firestoreDocId = recipeId))
+                                        } else {
+                                            val recipeIdInt = recipeId.toIntOrNull()
+                                            if (recipeIdInt != null) {
+                                                Log.d("MealPlannerScreen", "Navigating to Spoonacular recipe details: $recipeIdInt")
+                                                navController.navigate(NavRoutes.recipeDetailsRoute(recipeIdInt.toString(), isCustom = false))
+                                            } else {
+                                                Log.e("MealPlannerScreen", "Failed to parse recipeId as Int: $recipeId")
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -130,7 +149,7 @@ fun MealPlanItem(
             } else {
                 recipes.forEach { recipe ->
                     val recipeSummary = RecipeSummary(
-                        id = recipe.id.toIntOrNull() ?: 0, // Adjust based on actual mapping
+                        id = recipe.id.toIntOrNull() ?: 0,
                         title = recipe.title,
                         image = recipe.recipeImage
                     )

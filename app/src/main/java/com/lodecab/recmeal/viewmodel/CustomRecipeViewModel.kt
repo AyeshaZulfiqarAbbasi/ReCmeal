@@ -253,17 +253,7 @@ data class RecipeState(
             _isLoading.value = false
         }
     }
-    fun debugCreateCollection(collectionName: String) {
-        _isLoading.value = true
-        recipeRepository.debugCreateCollection(collectionName) { success, errorMessage ->
-            if (success) {
-                _error.value = "Successfully created collection: $collectionName"
-            } else {
-                _error.value = errorMessage ?: "Failed to create collection: $collectionName"
-            }
-            _isLoading.value = false
-        }
-    }
+
 
     fun onNavigationHandled() {
         _navigateToRecipeList.value = false

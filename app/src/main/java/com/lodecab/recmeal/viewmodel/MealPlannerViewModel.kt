@@ -21,7 +21,6 @@ class MealPlannerViewModel @Inject constructor(
 ) : ViewModel() {
     val mealPlans: Flow<List<MealPlanEntity>> = recipeRepository.getMealPlans()
 
-    // Declare the map to hold StateFlow for each date
     private val recipesByDate = mutableMapOf<String, MutableStateFlow<List<MealPlanRecipeEntity>>>()
 
     private val _error = MutableStateFlow<String?>(null)
@@ -57,6 +56,7 @@ class MealPlannerViewModel @Inject constructor(
                 recipeRepository.insertMealPlanRecipe(date, mealPlanRecipe)
             } catch (e: Exception) {
                 Log.e("MealPlannerViewModel", "Error adding recipe to meal plan: ${e.message}", e)
+                _error.value = "Error adding recipe to meal plan: ${e.message}"
             }
         }
     }
@@ -65,11 +65,17 @@ class MealPlannerViewModel @Inject constructor(
         viewModelScope.launch {
             recipeRepository.deleteMealPlanRecipe(date, recipeId) { success, errorMessage ->
                 if (success) {
-                    Log.d("MealPlannerViewModel", "Recipe deleted successfully from meal plan")
+                    Log.d("MealPlannerViewModel", "Recipe deleted successfully from meal plan: $date, $recipeId")
+                    // Since getRecipesForDate now uses a snapshot listener, the UI should update automatically
                     viewModelScope.launch {
                         val remainingRecipes = getRecipesForDate(date).firstOrNull() ?: emptyList()
                         if (remainingRecipes.isEmpty()) {
-                            recipeRepository.deleteMealPlanAndRecipes(date)
+                            recipeRepository.deleteMealPlanAndRecipes(date) { delSuccess, delError ->
+                                if (!delSuccess) {
+                                    Log.e("MealPlannerViewModel", "Failed to delete meal plan: $delError")
+                                    _error.value = delError
+                                }
+                            }
                         }
                     }
                 } else {

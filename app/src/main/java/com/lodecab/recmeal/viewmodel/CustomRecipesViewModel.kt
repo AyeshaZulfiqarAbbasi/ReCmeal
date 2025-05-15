@@ -5,17 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreSettings
+import com.google.firebase.firestore.ListenerRegistration
 import com.lodecab.recmeal.data.CustomRecipe
 import com.lodecab.recmeal.data.MealPlanEntity
 import com.lodecab.recmeal.data.MealPlanRecipeEntity
 import com.lodecab.recmeal.data.RecipeRepository
 import com.lodecab.recmeal.utils.NetworkUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
@@ -36,10 +34,38 @@ class CustomRecipesViewModel @Inject constructor(
     val error: StateFlow<String?> = _error.asStateFlow()
 
     private val _customRecipe = MutableStateFlow<CustomRecipe?>(null)
-    val customRecipe: Flow<CustomRecipe?> = _customRecipe.asStateFlow()
+    val customRecipe: StateFlow<CustomRecipe?> = _customRecipe.asStateFlow()
+
+    private var customRecipesListener: ListenerRegistration? = null
 
     init {
-        fetchCustomRecipes()
+        // Enable offline persistence first
+        firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
+            .setPersistenceEnabled(true)
+            .build()
+
+        // Then set up the listener
+        setupCustomRecipesListener()
+    }
+
+    private fun setupCustomRecipesListener() {
+        val userId = firebaseAuth.currentUser?.uid ?: return
+        customRecipesListener?.remove()
+        customRecipesListener = firestore.collection("users")
+            .document(userId)
+            .collection("custom_recipes")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("CustomRecipesViewModel", "Listen failed for custom recipes: ${e.message}", e)
+                    _error.value = "Failed to listen to custom recipes: ${e.message}"
+                    return@addSnapshotListener
+                }
+                val recipes = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(CustomRecipe::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+                _customRecipes.value = recipes
+                Log.d("CustomRecipesViewModel", "Updated custom recipes: $recipes")
+            }
     }
 
     fun getCustomRecipe(firestoreDocId: String): Flow<CustomRecipe?> {
@@ -49,11 +75,13 @@ class CustomRecipesViewModel @Inject constructor(
                 Log.d("CustomRecipeViewModel", "Fetching custom recipe for userId: $userId, firestoreDocId: $firestoreDocId")
                 val recipe = recipeRepository.getCustomRecipe(firestoreDocId, userId)
                 _customRecipe.value = recipe
+                _error.value = null
                 emit(recipe)
                 Log.d("CustomRecipeViewModel", "Fetched custom recipe: ${recipe?.title ?: "null"}")
             } catch (e: Exception) {
                 Log.e("CustomRecipeViewModel", "Error fetching custom recipe $firestoreDocId: ${e.message}", e)
                 _customRecipe.value = null
+                _error.value = "Failed to load recipe: ${e.message}"
                 emit(null)
             }
         }
@@ -67,7 +95,7 @@ class CustomRecipesViewModel @Inject constructor(
 
                 val mealPlanRecipe = MealPlanRecipeEntity(
                     date = date,
-                    rawId = recipe.id, // Change from 'id' to 'rawId'
+                    rawId = recipe.id,
                     title = recipe.title,
                     recipeImage = null,
                     isCustom = true,
@@ -90,8 +118,13 @@ class CustomRecipesViewModel @Inject constructor(
     fun deleteCustomRecipe(recipeId: String) {
         viewModelScope.launch {
             val userId = firebaseAuth.currentUser?.uid ?: return@launch
+            val startTime = System.currentTimeMillis()
+            Log.d("CustomRecipesViewModel", "Start deletion of recipe $recipeId at ${startTime}")
+
             try {
-                val result = withTimeoutOrNull(10000L) {
+                // Step 1: Delete the custom recipe with a 30-second timeout
+                Log.d("CustomRecipesViewModel", "Attempting to delete custom recipe $recipeId")
+                val deleteResult = withTimeoutOrNull(30000L) {
                     firestore.collection("users")
                         .document(userId)
                         .collection("custom_recipes")
@@ -99,10 +132,47 @@ class CustomRecipesViewModel @Inject constructor(
                         .delete()
                         .await()
                 }
-                if (result == null) {
-                    throw Exception("Failed to delete custom recipe: Operation timed out. Please check your network connection.")
+                if (deleteResult == null) {
+                    throw Exception("Failed to delete custom recipe: Operation timed out after 30 seconds.")
                 }
-                fetchCustomRecipes()
+                Log.d("CustomRecipesViewModel", "Custom recipe $recipeId deleted successfully at ${System.currentTimeMillis()} (took ${System.currentTimeMillis() - startTime} ms)")
+
+                // Step 2: Clean up meal plan recipes with a separate 30-second timeout
+                Log.d("CustomRecipesViewModel", "Starting meal plan cleanup for recipe $recipeId")
+                val mealPlansSnapshot = withTimeoutOrNull(30000L) {
+                    firestore.collection("users")
+                        .document(userId)
+                        .collection("meal_plans")
+                        .get()
+                        .await()
+                }
+                if (mealPlansSnapshot != null) {
+                    for (mealPlanDoc in mealPlansSnapshot.documents) {
+                        val date = mealPlanDoc.id
+                        Log.d("CustomRecipesViewModel", "Checking meal plan $date for recipe $recipeId")
+                        val recipesSnapshot = withTimeoutOrNull(30000L) {
+                            firestore.collection("users")
+                                .document(userId)
+                                .collection("meal_plans")
+                                .document(date)
+                                .collection("recipes")
+                                .whereEqualTo("firestoreDocId", recipeId)
+                                .get()
+                                .await()
+                        }
+                        if (recipesSnapshot != null) {
+                            for (recipeDoc in recipesSnapshot.documents) {
+                                Log.d("CustomRecipesViewModel", "Deleting meal plan recipe ${recipeDoc.id}")
+                                recipeDoc.reference.delete().await()
+                            }
+                        }
+                    }
+                    Log.d("CustomRecipesViewModel", "Meal plan cleanup completed for recipe $recipeId at ${System.currentTimeMillis()} (took ${System.currentTimeMillis() - startTime} ms)")
+                } else {
+                    Log.w("CustomRecipesViewModel", "Meal plans snapshot timed out or null for recipe $recipeId")
+                }
+
+                Log.d("CustomRecipesViewModel", "Total deletion process for recipe $recipeId completed at ${System.currentTimeMillis()} (took ${System.currentTimeMillis() - startTime} ms)")
             } catch (e: Exception) {
                 _error.value = "Error deleting custom recipe: ${e.message}"
                 Log.e("CustomRecipesViewModel", "Error deleting custom recipe: ${e.message}", e)
@@ -122,7 +192,7 @@ class CustomRecipesViewModel @Inject constructor(
                         .await()
                 }
                 if (snapshot == null) {
-                    _error.value = "Failed to fetch custom recipes: Operation timed out. Please check your network connection."
+                    _error.value = "Failed to fetch custom recipes: Operation timed out."
                     return@launch
                 }
                 val recipes = snapshot.documents.mapNotNull { doc ->
@@ -134,5 +204,13 @@ class CustomRecipesViewModel @Inject constructor(
                 Log.e("CustomRecipesViewModel", "Error fetching custom recipes: ${e.message}", e)
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        customRecipesListener?.remove()
+    }
+    fun clearError() {
+        _error.value = null
     }
 }

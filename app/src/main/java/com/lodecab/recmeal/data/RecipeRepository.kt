@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -100,10 +99,10 @@ class RecipeRepository @Inject constructor(
     }
 
     fun getFavorites(): StateFlow<List<RecipeSummary>> = favoritesFlow.asStateFlow()
-    fun getAllFavorites(): StateFlow<List<RecipeSummary>> = getFavorites() // Alias for compatibility
+    fun getAllFavorites(): StateFlow<List<RecipeSummary>> = getFavorites()
 
     fun getMealPlans(): StateFlow<List<MealPlanEntity>> = mealPlansFlow.asStateFlow()
-    fun getAllMealPlans(): StateFlow<List<MealPlanEntity>> = getMealPlans() // Alias for compatibility
+    fun getAllMealPlans(): StateFlow<List<MealPlanEntity>> = getMealPlans()
 
     suspend fun getCustomRecipe(recipeId: String, userId: String): CustomRecipe? {
         return try {
@@ -127,32 +126,42 @@ class RecipeRepository @Inject constructor(
         }
     }
 
-
     fun getRecipesForDate(date: String): Flow<List<MealPlanRecipeEntity>> {
         val userId = firebaseAuth.currentUser?.uid ?: return flow { emit(emptyList()) }
-        return flow {
-            try {
-                val snapshot = firestore.collection("users")
-                    .document(userId)
-                    .collection("meal_plans")
-                    .document(date)
-                    .collection("recipes")
-                    .get()
-                    .await()
-                val recipes = snapshot.documents.mapNotNull { doc ->
+
+        // Get or create the MutableStateFlow for this date
+        val mutableFlow = recipesForDateFlows.getOrPut(date) {
+            MutableStateFlow<List<MealPlanRecipeEntity>>(emptyList())
+        }
+
+        // Remove any existing listener for this date
+        recipesForDateListeners[date]?.remove()
+
+        // Set up a new snapshot listener
+        recipesForDateListeners[date] = firestore.collection("users")
+            .document(userId)
+            .collection("meal_plans")
+            .document(date)
+            .collection("recipes")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("RecipeRepository", "Listen failed for recipes on date $date: ${e.message}", e)
+                    mutableFlow.value = emptyList() // Update the value, not reassign the val
+                    return@addSnapshotListener
+                }
+                val recipes = snapshot?.documents?.mapNotNull { doc ->
                     try {
                         doc.toObject(MealPlanRecipeEntity::class.java)
-                    } catch (e: Exception) {
-                        Log.e("RecipeRepository", "Failed to deserialize recipe for doc ${doc.id}: ${e.message}", e)
+                    } catch (ex: Exception) {
+                        Log.e("RecipeRepository", "Failed to deserialize recipe for doc ${doc.id}: ${ex.message}", ex)
                         null
                     }
-                }
-                emit(recipes)
-            } catch (e: Exception) {
-                Log.e("RecipeRepository", "Error fetching recipes for date $date: ${e.message}", e)
-                emit(emptyList())
+                } ?: emptyList()
+                mutableFlow.value = recipes // Update the value
+                Log.d("RecipeRepository", "Updated recipes for date $date: $recipes")
             }
-        }
+
+        return mutableFlow.asStateFlow() // Return the StateFlow
     }
 
     fun insertMealPlan(mealPlan: MealPlanEntity, callback: (Boolean, String?) -> Unit = { _, _ -> }) {
@@ -180,7 +189,7 @@ class RecipeRepository @Inject constructor(
             .collection("meal_plans")
             .document(date)
             .collection("recipes")
-            .document(recipe.id) // Now a String
+            .document(recipe.id)
             .set(recipe)
             .addOnSuccessListener {
                 Log.d("RecipeRepository", "Recipe inserted for date: $date, recipeId: ${recipe.id}")
@@ -217,7 +226,7 @@ class RecipeRepository @Inject constructor(
             }
     }
 
-    fun debugCreateCollection(collectionName: String, callback: (Boolean, String?) -> Unit) {
+   /** fun debugCreateCollection(collectionName: String, callback: (Boolean, String?) -> Unit) {
         val userId = firebaseAuth.currentUser?.uid ?: return callback(false, "User not authenticated")
         val collectionRef = firestore.collection("users").document(userId).collection(collectionName)
         val debugDocId = "debug_${System.currentTimeMillis()}"
@@ -240,7 +249,7 @@ class RecipeRepository @Inject constructor(
                 Log.e("RecipeRepository", "Failed to create debug document in $collectionName: ${e.message}", e)
                 callback(false, "Failed to create debug document: ${e.message}")
             }
-    }
+    }**/
 
     fun deleteMealPlanAndRecipes(date: String, callback: (Boolean, String?) -> Unit = { _, _ -> }) {
         val userId = firebaseAuth.currentUser?.uid ?: return callback(false, "User not authenticated")
@@ -260,7 +269,7 @@ class RecipeRepository @Inject constructor(
     }
 
     fun deleteCustomRecipe(recipeId: String, callback: (Boolean, String?) -> Unit = { _, _ -> }) {
-        Log.d("RecipeRepository", "Attempting to delete custom recipe: $recipeId") // Add this
+        Log.d("RecipeRepository", "Attempting to delete custom recipe: $recipeId")
         val userId = firebaseAuth.currentUser?.uid ?: return callback(false, "User not authenticated")
         firestore.collection("users")
             .document(userId)
@@ -329,7 +338,7 @@ class RecipeRepository @Inject constructor(
             .collection("meal_plans")
             .document(date)
             .collection("recipes")
-            .document(recipeId) // Add recipeId to form a 6-segment document path
+            .document(recipeId)
             .delete()
             .addOnSuccessListener {
                 Log.d("RecipeRepository", "Recipe deleted from meal plan: $date, $recipeId")

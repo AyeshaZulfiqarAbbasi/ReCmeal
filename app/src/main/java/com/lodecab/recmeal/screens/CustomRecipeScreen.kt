@@ -183,26 +183,6 @@ fun CustomRecipeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Debug Buttons for Collection Creation
-        Button(
-            onClick = { viewModel.debugCreateCollection("custom_recipes") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isLoading
-        ) {
-            Text("Debug: Create custom_recipes")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Button(
-            onClick = { viewModel.debugCreateCollection("meal_plans") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isLoading
-        ) {
-            Text("Debug: Create meal_plans")
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         error?.let {
             Text(
@@ -219,6 +199,5 @@ fun CustomRecipeScreen(
         ) {
             Text("Save Recipe")
         }
-
     }
 }
