@@ -19,8 +19,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.lodecab.recmeal.data.CustomRecipe
 import com.lodecab.recmeal.viewmodel.CustomRecipesViewModel
-import java.util.Calendar
 import kotlinx.coroutines.delay
+import java.util.Calendar
 
 @Composable
 fun CustomRecipesScreen(
@@ -29,75 +29,73 @@ fun CustomRecipesScreen(
 ) {
     val customRecipes by viewModel.customRecipes.collectAsState()
     val error by viewModel.error.collectAsState()
-
-    // State to control Snackbar visibility
-    var showSnackbar by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Trigger Snackbar when error changes
+    // Trigger a recomposition when error changes to ensure UI updates
     LaunchedEffect(error) {
-        if (error != null) {
-            showSnackbar = true
+        if (error != null && error!!.isNotEmpty() && error != "null") {
+            Log.d("CustomRecipesScreen", "Error updated: $error")
+            // Show error in Snackbar and auto-dismiss after 5 seconds
             snackbarHostState.showSnackbar(
                 message = error!!,
                 duration = SnackbarDuration.Long
             )
             // Clear the error after displaying it
-            delay(5000) // Display for 5 seconds
-            viewModel.clearError() // Add this method to your ViewModel
+            delay(5000) // 5 seconds
+            viewModel.clearError()
         }
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        modifier = Modifier.fillMaxSize()
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        content = { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp)
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                    Text(
+                        text = "Custom Recipes",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Spacer(modifier = Modifier.width(48.dp))
                 }
-                Text(
-                    text = "Custom Recipes",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Spacer(modifier = Modifier.width(48.dp))
-            }
 
-            if (customRecipes.isEmpty()) {
-                Text(
-                    text = "No custom recipes yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            } else {
-                LazyColumn {
-                    items(customRecipes) { recipe ->
-                        CustomRecipeItem(
-                            recipe = recipe,
-                            onDelete = { viewModel.deleteCustomRecipe(recipe.id) },
-                            onAddToMealPlan = { date ->
-                                viewModel.addRecipeToMealPlan(date, recipe)
-                                navController.navigate(NavRoutes.MEAL_PLANNER)
-                            },
-                            onClick = {
-                                navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id, isCustom = true, firestoreDocId = recipe.id))
-                            }
-                        )
+                if (customRecipes.isEmpty()) {
+                    Text(
+                        text = "No custom recipes yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                } else {
+                    LazyColumn {
+                        items(customRecipes) { recipe ->
+                            CustomRecipeItem(
+                                recipe = recipe,
+                                onDelete = { viewModel.deleteCustomRecipe(recipe.id) },
+                                onAddToMealPlan = { date ->
+                                    viewModel.addRecipeToMealPlan(date, recipe)
+                                    navController.navigate(NavRoutes.MEAL_PLANNER)
+                                },
+                                onClick = {
+                                    navController.navigate(NavRoutes.recipeDetailsRoute(recipe.id, isCustom = true, firestoreDocId = recipe.id))
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
-    }
+    )
 }
 
 @Composable

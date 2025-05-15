@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.ListenerRegistration
 import com.lodecab.recmeal.data.CustomRecipe
 import com.lodecab.recmeal.data.MealPlanEntity
@@ -39,12 +38,7 @@ class CustomRecipesViewModel @Inject constructor(
     private var customRecipesListener: ListenerRegistration? = null
 
     init {
-        // Enable offline persistence first
-        firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
-            .setPersistenceEnabled(true)
-            .build()
-
-        // Then set up the listener
+        // Set up the listener directly since settings are now configured in RecmealApplication
         setupCustomRecipesListener()
     }
 
@@ -210,6 +204,7 @@ class CustomRecipesViewModel @Inject constructor(
         super.onCleared()
         customRecipesListener?.remove()
     }
+
     fun clearError() {
         _error.value = null
     }
